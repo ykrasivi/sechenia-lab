@@ -20,26 +20,60 @@ const EPS = 1e-6;
 const SUBS = '₀₁₂₃₄₅₆₇₈₉';
 const sub = (s) => s.replace(/\d/g, (d) => SUBS[d]);
 
+const H3 = Math.sqrt(3) / 2;
+const hexVerts = (r, z, suf) => Object.fromEntries('ABCDEF'.split('').map((n, i) => {
+  const a = (240 + 60 * i) * Math.PI / 180;
+  return [n + suf, [+(r * Math.cos(a)).toFixed(6), +(r * Math.sin(a)).toFixed(6), z]];
+}));
+const hexFaces = (top) => {
+  const L = 'ABCDEF'.split('');
+  const f = [L, top ? L.map((n) => n + '1') : null].filter(Boolean);
+  L.forEach((n, i) => { const m = L[(i + 1) % 6]; f.push(top ? [n, m, m + '1', n + '1'] : ['S', n, m]); });
+  return f;
+};
+// base — первая грань (основание); apex — вершина пирамиды; lat — боковое ребро призмы (направление проектирования)
+// calc — масштаб k для задач на вычисление и условие с «красивыми» длинами
 const POLY_DEFS = {
   cube: {
-    title: 'Куб', full: 'куба', name: 'ABCDA1B1C1D1',
+    title: 'Куб', full: 'куба', name: 'ABCDA1B1C1D1', lat: ['A', 'A1'],
     verts: { A: [-1, -1, -1], B: [1, -1, -1], C: [1, 1, -1], D: [-1, 1, -1], A1: [-1, -1, 1], B1: [1, -1, 1], C1: [1, 1, 1], D1: [-1, 1, 1] },
+    faces: [['A', 'B', 'C', 'D'], ['A1', 'B1', 'C1', 'D1'], ['A', 'B', 'B1', 'A1'], ['B', 'C', 'C1', 'B1'], ['C', 'D', 'D1', 'C1'], ['D', 'A', 'A1', 'D1']],
+    calc: { k: 3, cond: 'Ребро куба равно 6.' },
+  },
+  paral: {
+    title: 'Параллелепипед', full: 'параллелепипеда', name: 'ABCDA1B1C1D1', lat: ['A', 'A1'],
+    verts: { A: [-1.3, -0.95, -1], B: [0.95, -0.95, -1], C: [1.35, 0.95, -1], D: [-0.9, 0.95, -1], A1: [-0.95, -0.75, 1], B1: [1.3, -0.75, 1], C1: [1.7, 1.15, 1], D1: [-0.55, 1.15, 1] },
     faces: [['A', 'B', 'C', 'D'], ['A1', 'B1', 'C1', 'D1'], ['A', 'B', 'B1', 'A1'], ['B', 'C', 'C1', 'B1'], ['C', 'D', 'D1', 'C1'], ['D', 'A', 'A1', 'D1']],
   },
   tetra: {
-    title: 'Треугольная пирамида', full: 'пирамиды', name: 'SABC',
-    verts: { A: [-1.25, -0.75, -0.95], B: [1.25, -0.75, -0.95], C: [0, 1.4, -0.95], S: [0, 0, 1.35] },
+    title: 'Тетраэдр', full: 'тетраэдра', name: 'SABC', apex: 'S',
+    verts: { A: [-1.25, -1.25 / 3 * H3 * 2, -0.85], B: [1.25, -1.25 / 3 * H3 * 2, -0.85], C: [0, 2.5 * H3 * 2 / 3, -0.85], S: [0, 0, -0.85 + 2.5 * Math.sqrt(2 / 3)] },
     faces: [['A', 'B', 'C'], ['S', 'A', 'B'], ['S', 'B', 'C'], ['S', 'C', 'A']],
+    calc: { k: 2, cond: 'Все рёбра тетраэдра равны 5.' },
   },
   pyr4: {
-    title: 'Четырёхугольная пирамида', full: 'пирамиды', name: 'SABCD',
-    verts: { A: [-1.15, -1.15, -0.95], B: [1.15, -1.15, -0.95], C: [1.15, 1.15, -0.95], D: [-1.15, 1.15, -0.95], S: [0, 0, 1.4] },
+    title: 'Четырёхугольная пирамида', full: 'пирамиды', name: 'SABCD', apex: 'S',
+    verts: { A: [-1.15, -1.15, -0.85], B: [1.15, -1.15, -0.85], C: [1.15, 1.15, -0.85], D: [-1.15, 1.15, -0.85], S: [0, 0, -0.85 + 2.3 / Math.SQRT2] },
     faces: [['A', 'B', 'C', 'D'], ['S', 'A', 'B'], ['S', 'B', 'C'], ['S', 'C', 'D'], ['S', 'D', 'A']],
+    calc: { k: 6 / 2.3, cond: 'Пирамида правильная, все её рёбра равны 6.' },
   },
   prism: {
-    title: 'Треугольная призма', full: 'призмы', name: 'ABCA1B1C1',
-    verts: { A: [-1.25, -0.8, -1], B: [1.25, -0.8, -1], C: [0, 1.35, -1], A1: [-1.25, -0.8, 1], B1: [1.25, -0.8, 1], C1: [0, 1.35, 1] },
+    title: 'Треугольная призма', full: 'призмы', name: 'ABCA1B1C1', lat: ['A', 'A1'],
+    verts: { A: [-1.25, -2.5 * H3 / 3, -1], B: [1.25, -2.5 * H3 / 3, -1], C: [0, 2.5 * H3 * 2 / 3, -1], A1: [-1.25, -2.5 * H3 / 3, 1], B1: [1.25, -2.5 * H3 / 3, 1], C1: [0, 2.5 * H3 * 2 / 3, 1] },
     faces: [['A', 'B', 'C'], ['A1', 'B1', 'C1'], ['A', 'B', 'B1', 'A1'], ['B', 'C', 'C1', 'B1'], ['C', 'A', 'A1', 'C1']],
+    calc: { k: 2, cond: 'Призма правильная, сторона основания равна 5, боковое ребро равно 4.' },
+  },
+  hexprism: {
+    title: 'Шестиугольная призма', full: 'призмы', name: 'ABCDEFA1B1C1D1E1F1', lat: ['A', 'A1'],
+    verts: { ...hexVerts(1.2, -1, ''), ...hexVerts(1.2, 1, '1') },
+    faces: hexFaces(true),
+    calc: { k: 5, cond: 'Призма правильная, сторона основания равна 6, боковое ребро равно 10.' },
+  },
+  hexpyr: {
+    title: 'Шестиугольная пирамида', full: 'пирамиды', name: 'SABCDEF', apex: 'S',
+    verts: { ...hexVerts(1.2, -0.85, ''), S: [0, 0, 1.15] },
+    faces: hexFaces(false),
+    calc: { k: 5, cond: 'Пирамида правильная, сторона основания равна 6, высота равна 10.' },
   },
 };
 
@@ -69,7 +103,7 @@ function buildPoly(key) {
     // подпись ребра в привычном порядке: S раньше, «без индекса» раньше
     const order = (n) => (n === 'S' ? -1 : 0) + n.length * 0.1;
     const [p, q] = order(e.a) <= order(e.b) ? [e.a, e.b] : [e.b, e.a];
-    e.label = sub(p + q);
+    e.label = sub(p + q); e.la = p; e.lb = q;
     e.pa = def.verts[e.a]; e.pb = def.verts[e.b];
   });
   const findEdge = (a, b) => emap[ekey(a, b)];
@@ -163,7 +197,7 @@ function solveSteps(poly, given, plane, target) {
   const fname = (fi) => poly.faces[fi].label;
   const known = poly.faces.map(() => []);
   const all = [];
-  const used = new Set(given.map((g) => g.name));
+  const used = new Set([...given.map((g) => g.name), ...poly.names]);
   const letters = ['P', 'Q', 'R', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'E', 'F', 'G', 'H'];
   let li = 0;
   const nextName = () => { while (used.has(letters[li % letters.length] + (li >= letters.length ? '′' : ''))) li++; const n = letters[li % letters.length] + (li >= letters.length ? '′' : ''); used.add(n); li++; return n; };
@@ -174,7 +208,57 @@ function solveSteps(poly, given, plane, target) {
   const processed = new Set();
   const lines = {};
   const steps = [];
-  const stats = { ext: 0, par: 0 };
+  const stats = { ext: 0, par: 0, proj: 0 };
+  // --- метод внутреннего проектирования ---
+  const def = poly.def, base = poly.faces[0];
+  const onSeg = (e, pos) => { const d = V.sub(e.pb, e.pa), t = V.dot(V.sub(pos, e.pa), d) / V.dot(d, d); return t > -1e-7 && t < 1 + 1e-7 && V.dist(pos, V.lerp(e.pa, e.pb, t)) < 1e-6; };
+  const inBase = (pos) => Math.abs(V.dot(base.normal, pos) - base.d) < 1e-6;
+  function projOf(pos) {
+    const n = base.normal;
+    if (def.apex) {
+      const S = poly.verts[def.apex], d = V.sub(pos, S), den = V.dot(n, d);
+      return Math.abs(den) < 1e-9 ? null : V.add(S, V.mul(d, (base.d - V.dot(n, S)) / den));
+    }
+    if (!def.lat) return null;
+    const dir = V.sub(poly.verts[def.lat[1]], poly.verts[def.lat[0]]);
+    return V.sub(pos, V.mul(dir, (V.dot(n, pos) - base.d) / V.dot(n, dir)));
+  }
+  function projInfo(pt) {
+    const pos = projOf(pt.pos); if (!pos) return null;
+    const vn = base.verts.find((n) => V.dist(poly.verts[n], pos) < 1e-6);
+    if (vn) return { pos, vertex: vn };
+    const e = poly.edges.find((x) => base.verts.includes(x.a) && base.verts.includes(x.b) && onSeg(x, pos));
+    return e ? { pos, edge: e } : null;
+  }
+  const usedPairs = new Set();
+  const projNames = {};
+  function projectionStep() {
+    if (!def.apex && !def.lat) return false;
+    const cand = all.filter((p) => !p.outside && !p.proj && !inBase(p.pos) && projInfo(p));
+    for (let i = 0; i < cand.length; i++) for (let j = i + 1; j < cand.length; j++) {
+      const X = cand[i], Y = cand[j], key = X.name + '|' + Y.name;
+      if (usedPairs.has(key)) continue;
+      const px = projInfo(X), py = projInfo(Y);
+      if (V.dist(px.pos, py.pos) < 1e-6) continue;
+      const r = lineLine(X.pos, V.sub(Y.pos, X.pos), px.pos, V.sub(py.pos, px.pos));
+      if (r.kind !== 'point' || findKnown(r.pos)) continue;
+      usedPairs.add(key);
+      const nm = (p, info) => info.vertex || (projNames[p.name] = projNames[p.name] || nextName());
+      const how = (p, info) => info.vertex
+        ? `проекция точки ${sub(p.name)} — вершина ${sub(info.vertex)}`
+        : def.apex ? `${sub(nm(p, info))} = ${sub(def.apex + p.name)} ∩ ${info.edge.label}`
+          : `через ${sub(p.name)} проведите прямую, параллельную ${sub(def.lat.join(''))}; ${sub(nm(p, info))} — её пересечение с ${info.edge.label}`;
+      const tx = how(X, px), ty = how(Y, py);
+      const Xp = nm(X, px), Yp = nm(Y, py);
+      const T = { name: nextName(), pos: r.pos, faces: [0], outside: true };
+      all.push(T); addTo(0, T);
+      stats.proj++;
+      steps.push({ kind: 'proj', text: `Метод внутреннего проектирования. Спроецируйте точки ${sub(X.name)} и ${sub(Y.name)} на плоскость основания ${base.label} ${def.apex ? 'из вершины ' + def.apex : 'параллельно боковому ребру ' + sub(def.lat.join(''))}: ${tx}; ${ty}.` });
+      steps.push({ kind: 'proj', text: `Прямые ${sub(X.name + Y.name)} и ${sub(Xp + Yp)} лежат в одной плоскости ${def.apex ? '(она проходит через ' + def.apex + ')' : '(она параллельна боковым рёбрам)'}. Их пересечение ${sub(T.name)} лежит и в секущей плоскости, и в плоскости основания.` });
+      return true;
+    }
+    return false;
+  }
   const done = () => target.every((t) => findKnown(t.pos));
 
   function process(fi, p, d, label, intro) {
@@ -268,6 +352,8 @@ function solveSteps(poly, given, plane, target) {
       });
       continue;
     }
+    // 4) внутреннее проектирование
+    if (projectionStep()) continue;
     break;
   }
   const ok = done();
@@ -283,11 +369,13 @@ const TASKS = [
   { id: 'b3', level: 1, poly: 'cube', pts: [{ n: 'K', on: ['A1', 'B1'], t: 0.5 }, { n: 'L', on: ['B1', 'C1'], t: 0.5 }, { v: 'B' }] },
   { id: 'b4', level: 1, poly: 'prism', pts: [{ n: 'K', on: ['A', 'A1'], t: 0.5 }, { n: 'L', on: ['B', 'B1'], t: 1 / 3 }, { v: 'C' }] },
   { id: 'b5', level: 1, poly: 'pyr4', pts: [{ v: 'A' }, { v: 'C' }, { n: 'K', on: ['S', 'B'], t: 0.5 }] },
+  { id: 'b6', level: 1, poly: 'hexprism', pts: [{ n: 'K', on: ['A', 'A1'], t: 0.5 }, { n: 'L', on: ['A', 'B'], t: 0.5 }, { n: 'M', on: ['A', 'F'], t: 0.5 }] },
   // Средний уровень: один след или параллельность
   { id: 'm1', level: 2, poly: 'cube', pts: [{ n: 'K', on: ['A', 'A1'], t: 0.75 }, { n: 'L', on: ['B', 'B1'], t: 0.25 }, { n: 'M', on: ['C', 'C1'], t: 0.5 }] },
   { id: 'm2', level: 2, poly: 'tetra', pts: [{ n: 'K', on: ['S', 'A'], t: 0.25 }, { n: 'L', on: ['S', 'B'], t: 0.6 }, { n: 'M', on: ['B', 'C'], t: 0.5 }] },
   { id: 'm3', level: 2, poly: 'pyr4', pts: [{ v: 'A' }, { v: 'B' }, { n: 'M', on: ['S', 'C'], t: 0.5 }] },
   { id: 'm4', level: 2, poly: 'prism', pts: [{ n: 'K', on: ['A', 'B'], t: 0.5 }, { n: 'L', on: ['A', 'C'], t: 0.5 }, { v: 'B1' }] },
+  { id: 'm6', level: 2, poly: 'paral', pts: [{ n: 'K', on: ['A', 'A1'], t: 0.75 }, { n: 'L', on: ['B', 'B1'], t: 0.25 }, { n: 'M', on: ['C', 'C1'], t: 0.5 }] },
   { id: 'm5', level: 2, poly: 'tetra', pts: [{ n: 'K', on: ['S', 'A'], t: 0.25 }, { n: 'L', on: ['B', 'C'], t: 1 / 3 }, { n: 'M', on: ['A', 'B'], t: 0.5 }] },
   // Сложный уровень: несколько следов, пяти- и шестиугольники
   { id: 'h1', level: 3, poly: 'cube', pts: [{ n: 'K', on: ['A', 'B'], t: 0.5 }, { n: 'L', on: ['A', 'D'], t: 0.5 }, { n: 'M', on: ['C', 'C1'], t: 0.5 }] },
@@ -296,6 +384,15 @@ const TASKS = [
   { id: 'h4', level: 3, poly: 'cube', pts: [{ n: 'K', on: ['A', 'B'], t: 0.5 }, { n: 'L', on: ['B', 'C'], t: 0.5 }, { v: 'D1' }] },
   { id: 'h6', level: 3, poly: 'cube', pts: [{ n: 'K', on: ['B1', 'C1'], t: 0.5 }, { n: 'L', on: ['C1', 'D1'], t: 0.5 }, { n: 'M', on: ['A', 'A1'], t: 1 / 3 }] },
   { id: 'h5', level: 3, poly: 'prism', pts: [{ n: 'K', on: ['A', 'A1'], t: 0.5 }, { n: 'L', on: ['B1', 'C1'], t: 0.5 }, { n: 'M', on: ['B', 'C'], t: 0.25 }] },
+  { id: 'h8', level: 3, poly: 'paral', pts: [{ n: 'K', on: ['A', 'B'], t: 0.5 }, { n: 'L', on: ['A', 'D'], t: 0.5 }, { n: 'M', on: ['C', 'C1'], t: 0.5 }] },
+  { id: 'h9', level: 3, poly: 'hexpyr', pts: [{ n: 'K', on: ['S', 'A'], t: 0.5 }, { n: 'L', on: ['S', 'B'], t: 0.5 }, { n: 'M', on: ['C', 'D'], t: 0.5 }] },
+  // Проектирование: точки внутри граней, нет двух точек в одной грани
+  { id: 'p1', level: 4, poly: 'tetra', pts: [{ n: 'K', on: ['S', 'A'], t: 0.4 }, { n: 'L', face: ['S', 'B', 'C'], w: [0.3, 0.35, 0.35] }, { n: 'M', face: ['A', 'B', 'C'], w: [0.2, 0.5, 0.3] }] },
+  { id: 'p2', level: 4, poly: 'pyr4', pts: [{ n: 'K', face: ['S', 'A', 'B'], w: [0.3, 0.4, 0.3] }, { n: 'L', face: ['S', 'B', 'C'], w: [0.5, 0.25, 0.25] }, { n: 'M', on: ['S', 'D'], t: 0.75 }] },
+  { id: 'p3', level: 4, poly: 'prism', pts: [{ n: 'K', face: ['A', 'B', 'B1', 'A1'], w: [0.3, 0.3, 0.2, 0.2] }, { n: 'L', face: ['B', 'C', 'C1', 'B1'], w: [0.15, 0.15, 0.35, 0.35] }, { n: 'M', on: ['A1', 'C1'], t: 0.5 }] },
+  { id: 'p4', level: 4, poly: 'cube', pts: [{ n: 'K', face: ['A', 'B', 'B1', 'A1'], w: [0.35, 0.15, 0.15, 0.35] }, { n: 'L', face: ['B', 'C', 'C1', 'B1'], w: [0.1, 0.3, 0.3, 0.3] }, { n: 'M', on: ['D', 'D1'], t: 0.25 }] },
+  { id: 'p5', level: 4, poly: 'hexprism', pts: [{ n: 'K', on: ['A', 'B'], t: 0.5 }, { n: 'L', on: ['C', 'C1'], t: 0.5 }, { n: 'M', on: ['E1', 'F1'], t: 0.5 }] },
+  { id: 'p6', level: 4, poly: 'hexpyr', pts: [{ n: 'K', face: ['S', 'A', 'B'], w: [0.4, 0.3, 0.3] }, { n: 'L', face: ['S', 'C', 'D'], w: [0.2, 0.4, 0.4] }, { n: 'M', face: ['S', 'E', 'F'], w: [0.3, 0.35, 0.35] }] },
 ];
 
 function prepareTask(task) {
@@ -308,6 +405,7 @@ function prepareTask(task) {
 }
 
 function classify(p) {
+  if (p.sol.stats.proj) return 4;
   const n = p.target.length, x = (p.sol.stats.ext || 0) + (p.sol.stats.par || 0);
   if (n === 3 && x === 0) return 1;
   if (n <= 4 && x <= 2) return 2;
@@ -325,6 +423,13 @@ function randomTask(level, polyKey, rnd = Math.random) {
     const pts = [];
     const usedEdges = new Set();
     for (let i = 0; i < 3; i++) {
+      if (level === 4 && rnd() < 0.6) {
+        const lat = poly.faces.map((f, fi) => fi).filter((fi) => fi > 0 && !(poly.def.lat && fi === 1));
+        const f = poly.faces[lat[Math.floor(rnd() * lat.length)]];
+        const w = f.verts.map(() => 1 + Math.floor(rnd() * 3)), sw = w.reduce((a, b) => a + b, 0);
+        pts.push({ n: names[i], face: f.verts.slice(), w: w.map((x) => x / sw) });
+        continue;
+      }
       if (rnd() < 0.15) { const v = poly.names[Math.floor(rnd() * poly.names.length)]; pts.push({ v }); continue; }
       let ei; do { ei = Math.floor(rnd() * poly.edges.length); } while (usedEdges.has(ei));
       usedEdges.add(ei);
@@ -335,6 +440,7 @@ function randomTask(level, polyKey, rnd = Math.random) {
     if (new Set(pts.filter((p) => p.v).map((p) => p.v)).size !== pts.filter((p) => p.v).length) continue;
     // переименуем точки на рёбрах по порядку K, L, M
     let k = 0; pts.forEach((p) => { if (!p.v) p.n = names[k++]; });
+    if (level === 4 && !pts.some((p) => p.face)) continue;
     const task = { id: 'r' + Date.now() + tries, level, poly: pk, pts, random: true };
     const p = prepareTask(task);
     if (!p.plane || p.target.length < 3 || !p.sol.ok) continue;
@@ -418,6 +524,8 @@ const DEMOS = [
 ];
 const splitNames = (s) => s.match(/[A-Z]\d?/g) || [];
 
+
+const perimeterOf = (pts) => pts.reduce((a, p, i) => a + V.dist(p.pos, pts[(i + 1) % pts.length].pos), 0);
 // ===== Интерфейс =====
 const $ = (id) => document.getElementById(id);
 const LEVELS = {
@@ -425,8 +533,10 @@ const LEVELS = {
   1: { name: 'Базовый', note: 'Данные точки попарно лежат в общих гранях: соедините их отрезками. Число вершин сечения известно, подсказки бесплатны.', cost: 0 },
   2: { name: 'Средний', note: 'Понадобится один след на прямой ребра или параллельность граней. Каждая подсказка снимает звезду.', cost: 1 },
   3: { name: 'Сложный', note: 'Несколько следов подряд, пяти- и шестиугольные сечения. Число вершин не сообщается.', cost: 1 },
+  4: { name: 'Проектирование', note: 'Точки внутри граней, и никакие две не лежат в одной грани. Нужен метод внутреннего проектирования: спроецируйте точки на основание.', cost: 1 },
 };
-const NGON = { 3: 'треугольник', 4: 'четырёхугольник', 5: 'пятиугольник', 6: 'шестиугольник' };
+const NGON = { 3: 'треугольник', 4: 'четырёхугольник', 5: 'пятиугольник', 6: 'шестиугольник', 7: 'семиугольник', 8: 'восьмиугольник' };
+const MAXLV = 4;
 
 let progress = {};
 try {
@@ -436,8 +546,14 @@ try {
 } catch (e) { progress = {}; }
 const saveProgress = () => { try { localStorage.setItem('sec-lab-progress', JSON.stringify(progress)); } catch (e) { /* нет хранилища */ } };
 let curLevel = 1;
-try { const lv = +localStorage.getItem('sec-lab-level'); if (lv === 0 || lv === 1 || lv === 2 || lv === 3) curLevel = lv; } catch (e) { /* нет хранилища */ }
-let randomTasks = { 1: null, 2: null, 3: null };
+try { const lv = +localStorage.getItem('sec-lab-level'); if (Number.isInteger(lv) && lv >= 0 && lv <= MAXLV) curLevel = lv; } catch (e) { /* нет хранилища */ }
+let randomTasks = { 1: null, 2: null, 3: null, 4: null };
+let calcDone = {};
+try {
+  const raw = JSON.parse(localStorage.getItem('sec-lab-calc') || '[]');
+  if (Array.isArray(raw)) raw.forEach((id) => { if (TASKS.some((t) => t.id === id)) calcDone[id] = true; });
+} catch (e) { calcDone = {}; }
+const saveCalc = () => { try { localStorage.setItem('sec-lab-calc', JSON.stringify(Object.keys(calcDone))); } catch (e) { /* нет хранилища */ } };
 
 // ----- Three.js -----
 const stage = $('stage');
@@ -471,6 +587,8 @@ const M = {
   solLine: lmat({ linewidth: 2.4, dashed: true, dashSize: 0.12, gapSize: 0.06 }),
 };
 const faceMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.09, side: THREE.DoubleSide, depthWrite: false });
+const faceHi = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.24, side: THREE.DoubleSide, depthWrite: false });
+const faceBad = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false });
 const secMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.33, side: THREE.DoubleSide, depthWrite: false });
 const ptGeo = new THREE.SphereGeometry(0.052, 18, 12);
 const PM = {
@@ -483,7 +601,7 @@ function applyColors() {
   const ink = tok('--ink'), acc = tok('--accent'), sec = tok('--section'), sel = tok('--sel'), muted = tok('--muted');
   M.edge.color.set(ink); M.hidden.color.set(ink); M.ext.color.set(muted); M.user.color.set(acc);
   M.sel.color.set(sel); M.hover.color.set(acc); M.secLine.color.set(sec); M.secPrev.color.set(sec); M.solLine.color.set(sec);
-  faceMat.color.set(tok('--face')); secMat.color.set(sec);
+  faceMat.color.set(tok('--face')); secMat.color.set(sec); faceHi.color.set(acc); faceBad.color.set(sec);
   PM.vertex.color.set(ink); PM.given.color.set(sec); PM.built.color.set(acc); PM.sel.color.set(sel);
 }
 applyColors();
@@ -591,8 +709,11 @@ function loadTask(task, demoStep = 0) {
   poly.names.forEach((n) => addPoint(n, poly.verts[n], prep.given.some((g) => g.vertex === n) ? 'given' : 'vertex', { vertex: n }));
   prep.given.filter((g) => !g.vertex).forEach((g) => addPoint(g.name, g.pos, 'given', { edge: g.edge }));
   document.body.classList.toggle('demo-mode', !!task.demo);
+  document.body.classList.toggle('teacher-mode', !!task.preview);
   setTool(S.tool || 'line', true);
+  if (!task.preview) setHash(task.demo ? 'demo-' + task.id : TASKS.includes(task) ? 'task-' + task.id : 'c=' + encodeTask(task));
   if (task.demo) { runDemo(demoStep); return; }
+  if (task.preview) { renderTeacherInfo(); renderTaskList(); return; }
   renderPanel();
   say(`Начните с инструмента «Прямая»: соедините точки, лежащие в одной грани.`);
   renderTaskList();
@@ -625,9 +746,11 @@ function renderDemo() {
   const steps = S.task.steps, k = S.demoStep;
   $('demoNote').textContent = S.task.note || '';
   $('demoNote').hidden = !S.task.note;
-  $('demoSteps').innerHTML = steps.map((st, i) => `<li class="${i < k - 1 ? 'done' : i === k - 1 ? 'cur' : 'todo'}"><button data-step="${i + 1}">${st.text}</button></li>`).join('');
+  const shown = quizOn ? steps.slice(0, k) : steps;
+  $('demoSteps').innerHTML = shown.map((st, i) => `<li class="${i < k - 1 ? 'done' : i === k - 1 ? 'cur' : 'todo'}"><button data-step="${i + 1}">${st.text}</button></li>`).join('');
   $('demoPrev').disabled = k === 0;
-  $('demoNext').disabled = k === steps.length;
+  $('demoNext').disabled = k === steps.length || quizOn;
+  renderQuiz();
   $('demoNext').textContent = k === 0 ? 'Начать построение' : k === steps.length ? 'Построение завершено' : 'Далее';
   $('demoCount').textContent = `${k} из ${steps.length}`;
   const cur = $('demoSteps').querySelector('.cur');
@@ -637,12 +760,72 @@ function renderDemo() {
   }
 }
 
+// ----- Тест по шагам разбора -----
+let quizOn = false;
+let quiz = { id: null, mistakes: 0 };
+const stepLabel = (st) => st.do === 'line' ? sub(st.p.join(''))
+  : st.do === 'meet' ? `${sub(st.a)} ∩ ${sub(st.b)} = ${st.name}`
+    : st.do === 'par' ? `${sub(st.name)} ∥ ${sub(st.like)}`
+      : `${st.p.join('')} — искомое сечение`;
+const facesOfPos = (pos) => S.poly.faces.map((f, i) => (Math.abs(V.dot(f.normal, pos) - f.d) < 1e-6 ? i : -1)).filter((i) => i >= 0);
+const facesOfLine = (l) => facesOfPos(l.p).filter((i) => facesOfPos(V.add(l.p, l.d)).includes(i));
+function quizOptions(k) {
+  const st = S.task.steps[k];
+  const opts = [{ label: stepLabel(st), ok: true }];
+  const named = S.points.filter((p) => p.kind !== 'vertex');
+  if (st.do === 'line' || st.do === 'par') {
+    for (let i = 0; i < named.length && opts.length < 3; i++) for (let j = i + 1; j < named.length && opts.length < 3; j++) {
+      const X = named[i], Y = named[j];
+      const lbl = sub(X.name + Y.name);
+      if (opts.some((o) => o.label === lbl) || S.lines.some((l) => onLine(l, X.pos) && onLine(l, Y.pos))) continue;
+      if (facesOfPos(X.pos).some((f) => facesOfPos(Y.pos).includes(f))) continue;
+      opts.push({ label: lbl, why: `Точки ${sub(X.name)} и ${sub(Y.name)} лежат в разных гранях! Соединять можно только точки одной грани.` });
+    }
+  }
+  if (st.do === 'meet' || st.do === 'par') {
+    const a = st.do === 'meet' ? lineByName(st.a) : lineByName(st.like);
+    S.lines.filter((l) => l.kind === 'edge' && a && l !== a).forEach((l) => {
+      if (opts.length >= 3) return;
+      const r = lineLine(a.p, a.d, l.p, l.d);
+      if (r.kind !== 'skew') return;
+      const nm = st.do === 'meet' ? st.name : 'X';
+      opts.push({ label: `${a.name} ∩ ${l.name} = ${nm}`, why: `Прямые ${a.name} и ${l.name} скрещиваются — пересекаться не могут!` });
+    });
+  }
+  if (st.do === 'section') {
+    opts.push({ label: `${st.p.slice(0, -1).join('')} — искомое сечение`, why: `Не хватает вершины ${st.p.at(-1)}: секущая плоскость пересекает ещё одну грань.` });
+  }
+  // устойчивое перемешивание: позиция верного ответа зависит от номера шага
+  const rot = (k * 7 + 3) % opts.length;
+  return opts.slice(rot).concat(opts.slice(0, rot));
+}
+function renderQuiz() {
+  const box = $('quizBox');
+  const steps = S.task.steps, k = S.demoStep;
+  if (!quizOn) { box.hidden = true; return; }
+  box.hidden = false;
+  if (quiz.id !== S.task.id || k === 0) quiz = { id: S.task.id, mistakes: k === 0 ? 0 : quiz.mistakes };
+  if (k === steps.length) {
+    box.innerHTML = `<p class="quiz-q"><b>Тест пройден.</b> Ошибок: ${quiz.mistakes}.</p>`;
+    return;
+  }
+  const opts = quizOptions(k);
+  box.innerHTML = `<p class="quiz-q">Шаг ${k + 1}. Выберите верное действие:</p><div class="quiz-opts">${opts.map((o, i) => `<button class="btn quiz-opt" data-q="${i}">${o.label}</button>`).join('')}</div>`;
+  box.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => {
+    const o = opts[+b.dataset.q];
+    if (o.ok) { loadTask(S.task, k + 1); return; }
+    quiz.mistakes++;
+    b.classList.add('wrong'); b.disabled = true;
+    say(o.why, 'err');
+  }));
+}
+
 // ----- Панель -----
 function planeName(prep) { return prep.given.map((g) => sub(g.name)).join(''); }
 function renderPanel() {
   const { task, prep, poly } = S;
   const lv = task.level;
-  $('chips').innerHTML = `<span class="chip lv${lv}">${LEVELS[lv].name} уровень</span><span class="chip">${poly.def.title}</span>${task.fromDemo ? `<span class="chip">${task.fromDemo} из презентации</span>` : task.random ? '<span class="chip">случайная</span>' : ''}`;
+  $('chips').innerHTML = `<span class="chip lv${lv}">${LEVELS[lv].name} уровень</span><span class="chip">${poly.def.title}</span>${task.fromDemo ? `<span class="chip">${task.fromDemo} из презентации</span>` : task.custom ? '<span class="chip">своя задача</span>' : task.random ? '<span class="chip">случайная</span>' : ''}`;
   const verts = prep.given.filter((g) => g.vertex).map((g) => sub(g.name));
   const pts = prep.given.filter((g) => !g.vertex).map((g) => sub(g.name));
   let through = '';
@@ -679,6 +862,7 @@ function renderTaskList() {
   document.querySelectorAll('.levels button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view ? document.body.classList.contains('theory-mode') : !document.body.classList.contains('theory-mode') && +b.dataset.level === curLevel)));
   $('levelNote').textContent = LEVELS[curLevel].note;
   $('tasksTitle').textContent = curLevel ? 'Задачи уровня' : 'Задачи из презентации';
+  renderResults();
   if (curLevel === 0) {
     $('taskList').innerHTML = DEMOS.map((d, i) => {
       const nm = d.pts.map((p) => sub(p.v || p.n)).join('');
@@ -692,7 +876,8 @@ function renderTaskList() {
     const poly = POLY_DEFS[t.poly];
     const nm = t.pts.map((p) => sub(p.v || p.n)).join('');
     const st = progress[t.id];
-    return `<li><button data-id="${t.id}" aria-current="${S && S.task.id === t.id}"><span class="no">${t.random ? '∗' : String(i + 1).padStart(2, '0')}</span><span class="nm"><b>${poly.title}</b><span>сечение ${nm}</span></span>${starsHtml(st)}</button></li>`;
+    const calc = calcDone[t.id] ? '<span class="calc-mark" title="Вычисление решено">∑</span>' : '';
+    return `<li><button data-id="${t.id}" aria-current="${S && S.task.id === t.id}"><span class="no">${t.random ? '∗' : String(i + 1).padStart(2, '0')}</span><span class="nm"><b>${poly.title}</b><span>сечение ${nm}</span></span><span class="marks">${calc}${starsHtml(st)}</span></button></li>`;
   }).join('');
 }
 
@@ -820,15 +1005,39 @@ function check() {
   const name = ordered.map((p) => sub(p.name)).join('');
   renderResult(`<b>Верно!</b> Сечение ${m(name)} — ${NGON[target.length] || target.length + '-угольник'}. ${starsHtml(stars)}<br>Построений: ${S.history.length}, подсказок: ${S.revealed ? 'показано решение' : S.hints}.<div class="btn-row" style="margin-top:8px"><button class="btn primary" id="nextBtn">Следующая задача</button></div>`, 'ok');
   $('nextBtn').addEventListener('click', nextTask);
+  if (S.poly.def.calc) renderCalc();
   say(`Сечение построено: ${m(name)}.`, 'ok');
   renderHints(); renderTaskList();
+}
+function renderCalc() {
+  const { k, cond } = S.poly.def.calc;
+  const per = S.task.level === 1;
+  const what = per ? 'периметр' : 'площадь';
+  const ans = per ? perimeterOf(S.prep.target) * k : polyArea(S.prep.target) * k * k;
+  const box = document.createElement('div');
+  box.className = 'calc';
+  box.innerHTML = `<h3>Задача на вычисление · как в ЕГЭ</h3><p>${cond} Найдите ${what} построенного сечения. Ответ округлите до сотых.</p>
+    <div class="calc-row"><input id="calcIn" inputmode="decimal" autocomplete="off" placeholder="Ответ" aria-label="Ответ"><button class="btn primary" id="calcBtn">Проверить</button><button class="btn" id="calcShow">Показать ответ</button></div><p class="calc-msg" id="calcMsg" role="status"></p>`;
+  $('result').appendChild(box);
+  const fmt = (x) => x.toFixed(2).replace('.', ',');
+  const checkCalc = () => {
+    const x = Number(String($('calcIn').value).trim().replace(',', '.'));
+    if (!Number.isFinite(x)) { $('calcMsg').textContent = 'Введите число, например 12,73.'; return; }
+    if (Math.abs(x - ans) <= 0.011 + ans * 0.001) {
+      $('calcMsg').textContent = `Верно: ${fmt(ans)}.`; $('calcMsg').className = 'calc-msg ok';
+      if (TASKS.some((t) => t.id === S.task.id)) { calcDone[S.task.id] = true; saveCalc(); renderTaskList(); renderResults(); }
+    } else { $('calcMsg').textContent = 'Неверно. Найдите длины сторон сечения по теореме Пифагора или подобию треугольников.'; $('calcMsg').className = 'calc-msg err'; }
+  };
+  $('calcBtn').addEventListener('click', checkCalc);
+  $('calcIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') checkCalc(); });
+  $('calcShow').addEventListener('click', () => { $('calcMsg').textContent = `Ответ: ${fmt(ans)}.`; $('calcMsg').className = 'calc-msg'; });
 }
 function fail(msg) { say(msg, 'err'); renderResult(msg, 'err'); }
 function nextTask() {
   const list = TASKS.filter((t) => t.level === curLevel);
   const i = list.findIndex((t) => t.id === S.task.id);
   if (i >= 0 && i + 1 < list.length) return loadTask(list[i + 1]);
-  if (curLevel < 3) { curLevel++; storeLevel(); return loadTask(TASKS.find((t) => t.level === curLevel)); }
+  if (curLevel < MAXLV) { curLevel++; storeLevel(); return loadTask(TASKS.find((t) => t.level === curLevel)); }
   genTask();
 }
 function reveal() {
@@ -868,7 +1077,7 @@ function pickFor(x, y) {
   const l = pickLine(x, y); return l && { type: 'line', obj: l };
 }
 function handleClick(x, y) {
-  if (S.task.demo) return;
+  if (S.task.demo || S.task.preview) return;
   if (S.solved && S.tool === 'section') return;
   const hit = pickFor(x, y);
   const t = S.tool;
@@ -916,7 +1125,15 @@ cvs.addEventListener('pointermove', (e) => {
   S.hover = hit ? hit.obj : null;
   cvs.classList.toggle('hit', !!hit);
   const tip = $('tip');
-  if (hit) { tip.hidden = false; tip.style.left = x + 'px'; tip.style.top = y + 'px'; tip.textContent = hit.type === 'point' ? 'точка ' + sub(hit.obj.name) : (hit.obj.kind === 'edge' ? 'прямая ребра ' : 'прямая ') + hit.obj.name; }
+  if (hit) {
+    tip.hidden = false; tip.style.left = x + 'px'; tip.style.top = y + 'px';
+    const fs = hit.type === 'point' ? facesOfPos(hit.obj.pos) : facesOfLine(hit.obj);
+    const where = fs.length ? ' · ' + (fs.length > 1 ? 'грани ' : 'грань ') + fs.map((i) => S.poly.faces[i].label).join(', ') : '';
+    let txt = (hit.type === 'point' ? 'точка ' + sub(hit.obj.name) : (hit.obj.kind === 'edge' ? 'прямая ребра ' : 'прямая ') + hit.obj.name) + where;
+    const A = S.tool === 'line' && S.sel.length === 1 && hit.type === 'point' && hit.obj !== S.sel[0] ? S.sel[0] : null;
+    if (A && !facesOfPos(A.pos).some((f) => fs.includes(f))) txt = `${sub(A.name)} и ${sub(hit.obj.name)}: нет общей грани`;
+    tip.textContent = txt;
+  }
   else tip.hidden = true;
 });
 cvs.addEventListener('pointerleave', () => { S.hover = null; $('tip').hidden = true; });
@@ -928,7 +1145,7 @@ function openDemo(id, step = 0) { curLevel = 0; storeLevel(); showTheory(false);
 function showTheory(on) {
   document.body.classList.toggle('theory-mode', on);
   $('theory').hidden = !on;
-  if (on) { $('theory').scrollTop = 0; window.scrollTo(0, 0); }
+  if (on) { $('theory').scrollTop = 0; window.scrollTo(0, 0); setHash('theory'); }
   renderTaskList();
 }
 document.querySelectorAll('.levels button').forEach((b) => b.addEventListener('click', () => {
@@ -938,7 +1155,11 @@ document.querySelectorAll('.levels button').forEach((b) => b.addEventListener('c
   if (curLevel === 0) openDemo(DEMOS[0].id);
   else loadTask(TASKS.find((t) => t.level === curLevel));
 }));
-$('theory').addEventListener('click', (e) => { const b = e.target.closest('[data-open]'); if (b) openDemo(b.dataset.open); });
+$('theory').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-open]'); if (b) { openDemo(b.dataset.open); return; }
+  const lv = e.target.closest('[data-level-open]');
+  if (lv) { showTheory(false); curLevel = +lv.dataset.levelOpen; storeLevel(); loadTask(TASKS.find((t) => t.level === curLevel)); }
+});
 $('demoPrev').addEventListener('click', () => loadTask(S.task, S.demoStep - 1));
 $('demoNext').addEventListener('click', () => loadTask(S.task, S.demoStep + 1));
 $('demoReset').addEventListener('click', () => loadTask(S.task, 0));
@@ -971,7 +1192,9 @@ $('hintBtn').addEventListener('click', () => { S.hints++; renderHints(); });
 $('solveBtn').addEventListener('click', reveal);
 window.addEventListener('keydown', (e) => {
   if (e.target.closest('input, select, textarea')) return;
+  if (S.task.preview) return;
   if (S.task.demo) {
+    if (quizOn) return;
     if (e.key === 'ArrowRight' && S.demoStep < S.task.steps.length) loadTask(S.task, S.demoStep + 1);
     if (e.key === 'ArrowLeft' && S.demoStep > 0) loadTask(S.task, S.demoStep - 1);
     return;
@@ -999,6 +1222,16 @@ function frame() {
     else mat = M.user;
     if (l.obj.material !== mat) l.obj.material = mat;
   });
+  // подсветка граней, в которых лежит точка или прямая под курсором
+  const h = S.hover;
+  let hi = h ? (h.d ? facesOfLine(h) : facesOfPos(h.pos)) : [];
+  let bad = false;
+  if (h && !h.d && S.tool === 'line' && S.sel.length === 1 && S.sel[0] !== h) {
+    const fa = facesOfPos(S.sel[0].pos);
+    const common = hi.filter((f) => fa.includes(f));
+    if (common.length) hi = common; else bad = true;
+  }
+  poly.faces.forEach((f, i) => { const mt = hi.includes(i) ? (bad ? faceBad : faceHi) : faceMat; if (f.mesh.material !== mt) f.mesh.material = mt; });
   const [cx, cy] = scr(poly.center);
   S.points.forEach((p) => {
     const sel = selSet.has(p) || S.hover === p;
@@ -1015,6 +1248,230 @@ function frame() {
   renderer.render(scene, camera);
 }
 
-if (curLevel === 0) openDemo(DEMOS[0].id);
-else loadTask(TASKS.find((t) => t.level === curLevel) || TASKS[0]);
+$('quizToggle').addEventListener('change', (e) => { quizOn = e.target.checked; loadTask(S.task, 0); });
+
+// ----- Ссылки на задачи -----
+function setHash(h) { try { history.replaceState(null, '', '#' + h); } catch (e) { /* без адресной строки */ } }
+function encodeTask(task) {
+  const enc = (p) => {
+    if (p.v) return 'v.' + p.v;
+    if (p.face) return `${p.n}.f.${p.face.join('-')}.${p.w.map((w) => Math.max(1, Math.round(w * 1000))).join('-')}`;
+    for (let q = 2; q <= 24; q++) { const a = Math.round(p.t * q); if (a > 0 && a < q && Math.abs(p.t * q - a) < 1e-6) return `${p.n}.${p.on[0]}.${p.on[1]}.${a}.${q - a}`; }
+    const a = Math.round(p.t * 1000); return `${p.n}.${p.on[0]}.${p.on[1]}.${a}.${1000 - a}`;
+  };
+  return task.poly + '~' + task.pts.map(enc).join('~');
+}
+// строгий разбор: всё, что не соответствует формату, отбрасывается
+function decodeTask(str) {
+  const parts = String(str).split('~');
+  if (parts.length !== 4 || !Object.prototype.hasOwnProperty.call(POLY_DEFS, parts[0])) return null;
+  const poly = buildPoly(parts[0]);
+  const pts = [], names = new Set();
+  for (const tok of parts.slice(1)) {
+    let mm;
+    if ((mm = /^v\.([A-Z]1?)$/.exec(tok))) {
+      if (!poly.names.includes(mm[1]) || names.has(mm[1])) return null;
+      names.add(mm[1]); pts.push({ v: mm[1] });
+    } else if ((mm = /^([A-Z])\.([A-Z]1?)\.([A-Z]1?)\.(\d{1,4})\.(\d{1,4})$/.exec(tok))) {
+      const [, n, a, b, p, q] = mm;
+      if (poly.names.includes(n) || names.has(n) || poly.findEdge(a, b) === undefined || +p < 1 || +q < 1) return null;
+      names.add(n); pts.push({ n, on: [a, b], t: +p / (+p + +q) });
+    } else if ((mm = /^([A-Z])\.f\.((?:[A-Z]1?-){2,5}[A-Z]1?)\.((?:\d{1,4}-){2,5}\d{1,4})$/.exec(tok))) {
+      const [, n, vs, ws] = mm;
+      const face = vs.split('-'), w = ws.split('-').map(Number);
+      const f = poly.faces.find((x) => x.verts.length === face.length && face.every((v) => x.verts.includes(v)));
+      if (!f || w.length !== face.length || w.some((x) => x < 1) || poly.names.includes(n) || names.has(n)) return null;
+      const sw = w.reduce((x, y) => x + y, 0);
+      names.add(n); pts.push({ n, face, w: w.map((x) => x / sw) });
+    } else return null;
+  }
+  const task = { id: 'c-' + str.slice(0, 80), poly: parts[0], pts, random: true, custom: true, level: 2 };
+  const p = prepareTask(task);
+  if (!p.plane || p.target.length < 3 || !p.sol.ok) return null;
+  task.level = classify(p);
+  return task;
+}
+function openFromHash() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  if (h === 'theory') { showTheory(true); return true; }
+  let mm;
+  if ((mm = /^demo-(d\d)$/.exec(h)) && DEMOS.some((d) => d.id === mm[1])) { openDemo(mm[1]); return true; }
+  if ((mm = /^task-([a-z]\d{1,2})$/.exec(h))) { const t = TASKS.find((x) => x.id === mm[1]); if (t) { curLevel = t.level; loadTask(t); return true; } }
+  if (h.startsWith('c=')) {
+    const t = decodeTask(h.slice(2));
+    if (t) { curLevel = t.level; loadTask(t); say('Задача открыта по ссылке. Постройте сечение.'); return true; }
+    loadTask(TASKS[0]); say('Ссылка на задачу повреждена — открыта первая задача.', 'warn'); return true;
+  }
+  return false;
+}
+async function copyText(text, okMsg) {
+  try { await navigator.clipboard.writeText(text); say(okMsg, 'ok'); }
+  catch (e) { const f = $('copyFallback'); f.hidden = false; f.value = text; f.focus(); f.select(); say('Скопируйте ссылку вручную: она выделена в поле под условием.', 'warn'); }
+}
+$('linkBtn').addEventListener('click', () => copyText(location.href, 'Ссылка на задачу скопирована. Отправьте её ученикам.'));
+
+// ----- Конструктор задачи для учителя -----
+const RATIOS = [[1, 1], [1, 2], [2, 1], [1, 3], [3, 1], [2, 3], [3, 2]];
+const TNAMES = ['K', 'L', 'M'];
+function fillTeacherSelects(i) {
+  const poly = buildPoly($('tPoly').value);
+  const type = $('tType' + i).value;
+  const tg = $('tTarget' + i), prev = tg.value;
+  const opts = type === 'vertex' ? poly.names.map((n) => [n, sub(n)])
+    : type === 'face' ? poly.faces.map((f) => [f.verts.join('-'), 'грань ' + f.label])
+      : poly.edges.map((e) => [e.la + '|' + e.lb, 'ребро ' + e.label]);
+  tg.innerHTML = '';
+  opts.forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; tg.appendChild(o); });
+  if (opts.some(([v]) => v === prev)) tg.value = prev;
+  $('tRatio' + i).hidden = type !== 'edge';
+}
+function teacherTask() {
+  const pts = [0, 1, 2].map((i) => {
+    const type = $('tType' + i).value, v = $('tTarget' + i).value;
+    if (type === 'vertex') return { v };
+    if (type === 'face') { const face = v.split('-'); return { n: TNAMES[i], face, w: face.map(() => 1 / face.length) }; }
+    const [a, b] = v.split('|'), [p, q] = RATIOS[+$('tRatio' + i).value];
+    return { n: TNAMES[i], on: [a, b], t: p / (p + q) };
+  });
+  return { id: 'preview', poly: $('tPoly').value, pts, preview: true, level: 2 };
+}
+function previewTeacher() { loadTask(teacherTask()); }
+function renderTeacherInfo() {
+  const p = S.prep, info = $('tInfo');
+  const vs = S.task.pts.filter((x) => x.v).map((x) => x.v);
+  let msg, ok = false;
+  if (new Set(vs).size !== vs.length) msg = 'Одна и та же вершина выбрана дважды.';
+  else if (!p.plane) msg = 'Точки лежат на одной прямой — плоскость не задана.';
+  else if (p.target.length < 3) msg = 'Плоскость только касается многогранника — сечения нет.';
+  else if (isFacePlane(p)) msg = 'Все точки лежат в одной грани — сечение совпадает с гранью.';
+  else if (!p.sol.ok) msg = 'Такую задачу не решить инструментами лаборатории. Сдвиньте точки.';
+  else { ok = true; const lv = classify(p); S.task.level = lv; msg = `Сечение — ${NGON[p.target.length] || p.target.length + '-угольник'}. Уровень: ${LEVELS[lv].name.toLowerCase()}. Шагов в подсказке: ${p.sol.steps.length}.`; }
+  info.textContent = msg; info.className = 'tinfo ' + (ok ? 'ok' : 'err');
+  $('tSolve').disabled = !ok; $('tLink').disabled = !ok;
+}
+const isFacePlane = (p) => p.poly.faces.some((f) => Math.abs(Math.abs(V.dot(f.normal, p.plane.n)) - 1) < 1e-6 && Math.abs(V.dot(f.normal, p.given[0].pos) - f.d) < 1e-6);
+// стартовая расстановка: первая тройка рёбер, дающая решаемую задачу с хорошим сечением
+function teacherDefaults() {
+  const poly = buildPoly($('tPoly').value), E = poly.edges;
+  [0, 1, 2].forEach((i) => { $('tType' + i).value = 'edge'; $('tRatio' + i).value = '0'; fillTeacherSelects(i); });
+  for (let a = 0; a < E.length; a++) for (let b = a + 1; b < E.length; b++) for (let c = b + 1; c < E.length; c++) {
+    const pts = [a, b, c].map((ei, i) => ({ n: TNAMES[i], on: [E[ei].la, E[ei].lb], t: 0.5 }));
+    const p = prepareTask({ poly: poly.key, pts });
+    if (p.plane && p.target.length >= 4 && p.sol.ok && !isFacePlane(p) && polyArea(p.target) > 0.8) {
+      [a, b, c].forEach((ei, i) => { $('tTarget' + i).value = E[ei].la + '|' + E[ei].lb; });
+      return;
+    }
+  }
+}
+function openTeacher() {
+  showTheory(false);
+  teacherDefaults();
+  previewTeacher();
+  say('Конструктор: выберите многогранник и три точки. Сцена обновляется сразу.');
+}
+$('tPoly').addEventListener('change', () => { teacherDefaults(); previewTeacher(); });
+[0, 1, 2].forEach((i) => {
+  $('tType' + i).addEventListener('change', () => { fillTeacherSelects(i); previewTeacher(); });
+  $('tTarget' + i).addEventListener('change', previewTeacher);
+  $('tRatio' + i).addEventListener('change', previewTeacher);
+});
+$('teacherBtn').addEventListener('click', openTeacher);
+$('tClose').addEventListener('click', () => { loadTask(TASKS.find((t) => t.level === (curLevel || 1)) || TASKS[0]); });
+$('tSolve').addEventListener('click', () => { const t = { ...S.task, preview: false, random: true, custom: true, id: 'c-' + encodeTask(S.task) }; curLevel = t.level; loadTask(t); });
+$('tLink').addEventListener('click', () => {
+  const url = location.href.split('#')[0] + '#c=' + encodeTask(S.task);
+  copyText(url, 'Ссылка для учеников скопирована. По ней откроется эта задача.');
+});
+
+// ----- Результаты и код для учителя -----
+function renderResults() {
+  const solved = TASKS.filter((t) => progress[t.id] != null && progress[t.id] > 0);
+  const stars = solved.reduce((a, t) => a + progress[t.id], 0);
+  const calcs = Object.keys(calcDone).length;
+  $('resSummary').textContent = `Решено ${solved.length} из ${TASKS.length} задач, звёзд: ${stars}, вычислений: ${calcs}.`;
+}
+const b64e = (str) => { const bytes = new TextEncoder().encode(str); let bin = ''; bytes.forEach((b) => { bin += String.fromCharCode(b); }); return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const b64d = (str) => { const bin = atob(str.replace(/-/g, '+').replace(/_/g, '/')); return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))); };
+const fnv = (str) => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); };
+function makeCode(name) {
+  const p = {}; TASKS.forEach((t) => { if (progress[t.id] != null) p[t.id] = progress[t.id]; });
+  const json = JSON.stringify({ v: 1, n: name, d: new Date().toISOString().slice(0, 10), p, c: Object.keys(calcDone) });
+  return 'SL1.' + b64e(json) + '.' + fnv(json + '|sechenia');
+}
+function readCode(code) {
+  const parts = String(code).trim().split('.');
+  if (parts.length !== 3 || parts[0] !== 'SL1' || !/^[A-Za-z0-9_-]{1,4000}$/.test(parts[1])) return null;
+  let json, data;
+  try { json = b64d(parts[1]); data = JSON.parse(json); } catch (e) { return null; }
+  if (fnv(json + '|sechenia') !== parts[2]) return { forged: true };
+  if (!data || typeof data !== 'object' || typeof data.n !== 'string') return null;
+  const p = {};
+  if (data.p && typeof data.p === 'object') TASKS.forEach((t) => { const v = data.p[t.id]; if (Number.isInteger(v) && v >= 0 && v <= 3) p[t.id] = v; });
+  const c = Array.isArray(data.c) ? data.c.filter((id) => TASKS.some((t) => t.id === id)) : [];
+  const d = typeof data.d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.d) ? data.d : '';
+  return { n: data.n.slice(0, 40), d, p, c };
+}
+function el(tag, text, cls) { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; }
+function openModal(kind) {
+  const body = $('modalBody');
+  body.replaceChildren();
+  if (kind === 'student') {
+    $('modalTitle').textContent = 'Код для учителя';
+    body.append(el('p', 'Код содержит ваше имя и результаты по всем задачам. Отправьте его учителю — он увидит таблицу решённых задач.'));
+    const name = el('input'); name.id = 'stName'; name.maxLength = 40; name.placeholder = 'Фамилия и имя'; name.autocomplete = 'name';
+    try { name.value = localStorage.getItem('sec-lab-name') || ''; } catch (e) { /* нет хранилища */ }
+    const out = el('textarea'); out.id = 'stCode'; out.readOnly = true; out.rows = 3; out.hidden = true;
+    const make = el('button', 'Создать код', 'btn primary'); make.id = 'stMake';
+    const copy = el('button', 'Скопировать', 'btn'); copy.id = 'stCopy'; copy.hidden = true;
+    make.addEventListener('click', () => {
+      const n = name.value.trim();
+      if (!n) { name.focus(); name.setAttribute('aria-invalid', 'true'); return; }
+      try { localStorage.setItem('sec-lab-name', n); } catch (e) { /* нет хранилища */ }
+      out.value = makeCode(n); out.hidden = false; copy.hidden = false; out.select();
+    });
+    copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(out.value); copy.textContent = 'Скопировано'; } catch (e) { out.focus(); out.select(); } });
+    const row = el('div', null, 'btn-row'); row.append(make, copy);
+    body.append(name, row, out);
+  } else {
+    $('modalTitle').textContent = 'Проверить код ученика';
+    body.append(el('p', 'Вставьте код, который прислал ученик.'));
+    const inp = el('textarea'); inp.id = 'tcCode'; inp.rows = 3; inp.placeholder = 'SL1.…';
+    const go = el('button', 'Показать результаты', 'btn primary'); go.id = 'tcGo';
+    const out = el('div', null, 'code-out');
+    go.addEventListener('click', () => {
+      out.replaceChildren();
+      const r = readCode(inp.value);
+      if (!r) { out.append(el('p', 'Это не код лаборатории. Проверьте, что он скопирован целиком.', 'calc-msg err')); return; }
+      if (r.forged) { out.append(el('p', 'Код изменён вручную: контрольная сумма не сходится.', 'calc-msg err')); return; }
+      const solved = TASKS.filter((t) => r.p[t.id] > 0);
+      out.append(el('p', `${r.n}${r.d ? ' · ' + r.d.split('-').reverse().join('.') : ''}: решено ${solved.length} из ${TASKS.length}, звёзд ${solved.reduce((a, t) => a + r.p[t.id], 0)}, вычислений ${r.c.length}.`, 'code-sum'));
+      const wrap = el('div', null, 'ngon-wrap'); const tb = el('table', null, 'ngon');
+      const hr = el('tr'); ['Задача', 'Уровень', 'Звёзды', 'ЕГЭ'].forEach((h) => hr.append(el('th', h)));
+      const thead = el('thead'); thead.append(hr); tb.append(thead);
+      const tbody = el('tbody');
+      TASKS.forEach((t, i) => {
+        const tr = el('tr');
+        tr.append(el('td', `${POLY_DEFS[t.poly].title}, ${t.pts.map((x) => sub(x.v || x.n)).join('')}`), el('td', LEVELS[t.level].name),
+          el('td', r.p[t.id] != null ? '★'.repeat(r.p[t.id]) || 'решение показано' : '—'), el('td', r.c.includes(t.id) ? '✓' : ''));
+        tbody.append(tr);
+      });
+      tb.append(tbody); wrap.append(tb); out.append(wrap);
+    });
+    body.append(inp, go, out);
+  }
+  $('modal').hidden = false;
+  const first = body.querySelector('input, textarea'); if (first) first.focus();
+}
+function closeModal() { $('modal').hidden = true; }
+$('codeBtn').addEventListener('click', () => openModal('student'));
+$('checkCodeBtn').addEventListener('click', () => openModal('teacher'));
+$('modalClose').addEventListener('click', closeModal);
+$('modal').addEventListener('click', (e) => { if (e.target === $('modal')) closeModal(); });
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('modal').hidden) closeModal(); });
+
+window.addEventListener('hashchange', () => { closeModal(); openFromHash(); });
+if (!openFromHash()) {
+  if (curLevel === 0) openDemo(DEMOS[0].id);
+  else loadTask(TASKS.find((t) => t.level === curLevel) || TASKS[0]);
+}
 frame();
