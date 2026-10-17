@@ -140,6 +140,11 @@ function ratioText(t) {
 // Точка задачи → координаты и грани, в которых она лежит
 function resolvePoint(poly, spec) {
   if (spec.v) return { name: spec.v, pos: poly.verts[spec.v], faces: poly.vertFaces(spec.v), vertex: spec.v, given: true };
+  if (spec.face) {
+    const pos = spec.face.reduce((a, n, i) => V.add(a, V.mul(poly.verts[n], spec.w[i])), [0, 0, 0]);
+    const fi = poly.faces.findIndex((f) => spec.face.every((n) => f.verts.includes(n)));
+    return { name: spec.n, pos, faces: [fi], face: fi, given: true, spec };
+  }
   const ei = poly.findEdge(spec.on[0], spec.on[1]);
   const pos = V.lerp(poly.verts[spec.on[0]], poly.verts[spec.on[1]], spec.t);
   return { name: spec.n, pos, faces: poly.edges[ei].faces.slice(), edge: ei, given: true, spec };
@@ -147,6 +152,7 @@ function resolvePoint(poly, spec) {
 
 function describePoint(spec) {
   if (spec.v) return null;
+  if (spec.face) return `${spec.n} — точка внутри грани ${sub(spec.face.join(''))}`;
   const [a, b] = spec.on;
   if (Math.abs(spec.t - 0.5) < 1e-9) return `${spec.n} — середина ${sub(a + b)}`;
   return `${spec.n} ∈ ${sub(a + b)}, ${sub(a + spec.n)} : ${sub(spec.n + b)} = ${ratioText(spec.t)}`;
@@ -340,10 +346,82 @@ function randomTask(level, polyKey, rnd = Math.random) {
   return null;
 }
 
+// ===== Разборы задач из презентации «Задачи на построение сечений» =====
+const DEMOS = [
+  { id: 'd1', title: 'Задача 1', poly: 'tetra',
+    pts: [{ n: 'D', on: ['A', 'B'], t: 0.5 }, { n: 'E', on: ['S', 'A'], t: 0.55 }, { n: 'K', on: ['S', 'C'], t: 0.8 }],
+    steps: [
+      { do: 'line', p: ['D', 'E'], text: 'Точки D и E лежат в одной грани SAB — соединяем их.' },
+      { do: 'line', p: ['E', 'K'], text: 'Точки E и K лежат в одной грани SAC — соединяем их.' },
+      { do: 'meet', a: 'EK', b: 'AC', name: 'F', text: 'Прямые EK и AC лежат в одной плоскости SAC. Продолжаем их до пересечения в точке F.' },
+      { do: 'line', p: ['F', 'D'], text: 'Точка F лежит на прямой AC, значит, в плоскости основания ABC, как и точка D. Проводим прямую FD.' },
+      { do: 'meet', a: 'FD', b: 'BC', name: 'M', text: 'Прямая FD пересекает ребро BC в точке M.' },
+      { do: 'line', p: ['K', 'M'], text: 'Точки K и M лежат в одной грани SBC — соединяем их.' },
+      { do: 'section', p: ['D', 'E', 'K', 'M'], text: 'DEKM — искомое сечение.' },
+    ] },
+  { id: 'd2', title: 'Задача 2', poly: 'cube', note: 'В презентации — параллелепипед; здесь его частный случай, куб.',
+    pts: [{ n: 'E', on: ['A', 'A1'], t: 0.5 }, { n: 'F', on: ['A1', 'B1'], t: 0.25 }, { n: 'K', on: ['B1', 'C1'], t: 0.5 }],
+    steps: [
+      { do: 'line', p: ['K', 'F'], text: 'Соединяем точки K и F, принадлежащие одной плоскости A₁B₁C₁D₁.' },
+      { do: 'line', p: ['F', 'E'], text: 'Соединяем точки F и E, принадлежащие одной плоскости AA₁B₁B.' },
+      { do: 'meet', a: 'FE', b: 'AB', name: 'L', text: 'Прямые FE и AB, лежащие в одной плоскости AA₁B₁B, пересекаются в точке L.' },
+      { do: 'par', through: 'L', like: 'FK', name: 'LN', text: 'Проводим прямую LN параллельно FK: если секущая плоскость пересекает противоположные грани, то по параллельным отрезкам.' },
+      { do: 'meet', a: 'LN', b: 'AD', name: 'M', text: 'Прямая LN пересекает ребро AD в точке M…' },
+      { do: 'meet', a: 'LN', b: 'BC', name: 'N', text: '…и ребро BC в точке N.' },
+      { do: 'line', p: ['E', 'M'], text: 'Соединяем точки E и M, принадлежащие одной плоскости AA₁D₁D.' },
+      { do: 'line', p: ['K', 'N'], text: 'Соединяем точки K и N, принадлежащие одной плоскости BCC₁B₁.' },
+      { do: 'section', p: ['E', 'F', 'K', 'N', 'M'], text: 'EFKNM — искомое сечение.' },
+    ] },
+  { id: 'd3', title: 'Задача 3', poly: 'cube',
+    pts: [{ n: 'K', on: ['B1', 'C1'], t: 0.5 }, { n: 'L', on: ['A', 'A1'], t: 0.6 }, { n: 'M', on: ['A', 'D'], t: 0.6 }],
+    steps: [
+      { do: 'line', p: ['M', 'L'], text: 'Точки M и L лежат в одной грани AA₁D₁D — проводим прямую ML.' },
+      { do: 'meet', a: 'ML', b: 'D1A1', name: 'E', text: 'Прямые ML и D₁A₁ лежат в плоскости AA₁D₁D и пересекаются в точке E.' },
+      { do: 'line', p: ['E', 'K'], text: 'Точка E лежит на прямой D₁A₁, то есть в плоскости верхней грани, как и K. Проводим EK.' },
+      { do: 'meet', a: 'EK', b: 'A1B1', name: 'F', text: 'Прямая EK пересекает ребро A₁B₁ в точке F.' },
+      { do: 'line', p: ['L', 'F'], text: 'Точки L и F лежат в одной грани AA₁B₁B — соединяем их.' },
+      { do: 'meet', a: 'LM', b: 'D1D', name: 'N', text: 'Прямая LM пересекает прямую D₁D в точке N.' },
+      { do: 'meet', a: 'EK', b: 'D1C1', name: 'T', text: 'Прямая EK пересекает прямую D₁C₁ в точке T.' },
+      { do: 'line', p: ['N', 'T'], text: 'Точки N и T лежат в плоскости грани DD₁C₁C — проводим прямую NT.' },
+      { do: 'meet', a: 'NT', b: 'DC', name: 'G', text: 'NT пересекает ребро DC в точке G…' },
+      { do: 'meet', a: 'NT', b: 'CC1', name: 'P', text: '…и ребро CC₁ в точке P.' },
+      { do: 'line', p: ['M', 'G'], text: 'Соединяем точки M и G, лежащие в основании ABCD.' },
+      { do: 'line', p: ['P', 'K'], text: 'Соединяем точки P и K, лежащие в грани BCC₁B₁.' },
+      { do: 'section', p: ['M', 'L', 'F', 'K', 'P', 'G'], text: 'MLFKPG — искомое сечение, шестиугольник.' },
+    ] },
+  { id: 'd4', title: 'Задача 4', poly: 'cube',
+    pts: [{ n: 'H', on: ['D', 'D1'], t: 0.75 }, { n: 'T', on: ['C', 'C1'], t: 0.4 }, { n: 'M', on: ['A', 'B'], t: 0.5 }],
+    steps: [
+      { do: 'line', p: ['H', 'T'], text: 'Точки H и T лежат в одной грани DD₁C₁C — проводим HT. (Соединять H с M или M с T нельзя: они в разных гранях!)' },
+      { do: 'meet', a: 'HT', b: 'DC', name: 'E', text: 'HT и DC лежат в одной плоскости — их пересечение E. (HT и BC скрещиваются и пересечься не могут!)' },
+      { do: 'line', p: ['M', 'E'], text: 'Точки M и E лежат в плоскости основания ABCD — проводим ME.' },
+      { do: 'meet', a: 'ME', b: 'BC', name: 'F', text: 'ME пересекает ребро BC в точке F.' },
+      { do: 'line', p: ['T', 'F'], text: 'Точки T и F лежат в одной грани BCC₁B₁ — соединяем их.' },
+      { do: 'meet', a: 'TF', b: 'B1B', name: 'K', text: 'Прямые TF и B₁B лежат в плоскости BCC₁B₁ — продолжаем до пересечения в точке K.' },
+      { do: 'line', p: ['M', 'K'], text: 'Точки M и K лежат в плоскости грани AA₁B₁B — проводим MK.' },
+      { do: 'meet', a: 'MK', b: 'AA1', name: 'L', text: 'MK пересекает ребро AA₁ в точке L.' },
+      { do: 'line', p: ['L', 'H'], text: 'Точки L и H лежат в одной грани AA₁D₁D — соединяем их.' },
+      { do: 'section', p: ['H', 'T', 'F', 'M', 'L'], text: 'HTFML — искомое сечение.' },
+    ] },
+  { id: 'd5', title: 'Задача 5', poly: 'tetra',
+    pts: [{ n: 'K', on: ['S', 'C'], t: 0.45 }, { n: 'M', on: ['S', 'A'], t: 0.7 }, { n: 'P', face: ['A', 'B', 'C'], w: [0.3, 0.5, 0.2] }],
+    steps: [
+      { do: 'line', p: ['K', 'M'], text: 'Точки K и M лежат в одной грани SAC — проводим KM.' },
+      { do: 'meet', a: 'KM', b: 'CA', name: 'E', text: 'Прямые KM и CA лежат в плоскости SAC и пересекаются в точке E.' },
+      { do: 'line', p: ['E', 'P'], text: 'Точки E и P лежат в плоскости основания ABC — проводим EP.' },
+      { do: 'meet', a: 'EP', b: 'AB', name: 'F', text: 'EP пересекает ребро AB в точке F…' },
+      { do: 'meet', a: 'EP', b: 'BC', name: 'N', text: '…и ребро BC в точке N.' },
+      { do: 'line', p: ['M', 'F'], text: 'Соединяем точки M и F, лежащие в грани SAB.' },
+      { do: 'line', p: ['N', 'K'], text: 'Соединяем точки N и K, лежащие в грани SBC.' },
+      { do: 'section', p: ['K', 'M', 'F', 'N'], text: 'KMFN — искомое сечение.' },
+    ] },
+];
+const splitNames = (s) => s.match(/[A-Z]\d?/g) || [];
 
 // ===== Интерфейс =====
 const $ = (id) => document.getElementById(id);
 const LEVELS = {
+  0: { name: 'Разбор', note: 'Задачи из презентации «Задачи на построение сечений». Листайте построение по шагам кнопками «Далее» и «Назад», вращайте фигуру мышью.', cost: 0 },
   1: { name: 'Базовый', note: 'Данные точки попарно лежат в общих гранях: соедините их отрезками. Число вершин сечения известно, подсказки бесплатны.', cost: 0 },
   2: { name: 'Средний', note: 'Понадобится один след на прямой ребра или параллельность граней. Каждая подсказка снимает звезду.', cost: 1 },
   3: { name: 'Сложный', note: 'Несколько следов подряд, пяти- и шестиугольные сечения. Число вершин не сообщается.', cost: 1 },
@@ -358,7 +436,7 @@ try {
 } catch (e) { progress = {}; }
 const saveProgress = () => { try { localStorage.setItem('sec-lab-progress', JSON.stringify(progress)); } catch (e) { /* нет хранилища */ } };
 let curLevel = 1;
-try { const lv = +localStorage.getItem('sec-lab-level'); if (lv === 1 || lv === 2 || lv === 3) curLevel = lv; } catch (e) { /* нет хранилища */ }
+try { const lv = +localStorage.getItem('sec-lab-level'); if (lv === 0 || lv === 1 || lv === 2 || lv === 3) curLevel = lv; } catch (e) { /* нет хранилища */ }
 let randomTasks = { 1: null, 2: null, 3: null };
 
 // ----- Three.js -----
@@ -497,7 +575,7 @@ function extendTo(ln, pos) {
   if (t0 !== ln.t0 || t1 !== ln.t1) { ln.t0 = t0; ln.t1 = t1; redrawLine(ln); }
 }
 
-function loadTask(task) {
+function loadTask(task, demoStep = 0) {
   if (S) { while (world.children.length) removeObj(world.children[0]); }
   labelsEl.innerHTML = '';
   const prep = prepareTask(task);
@@ -512,10 +590,51 @@ function loadTask(task) {
   });
   poly.names.forEach((n) => addPoint(n, poly.verts[n], prep.given.some((g) => g.vertex === n) ? 'given' : 'vertex', { vertex: n }));
   prep.given.filter((g) => !g.vertex).forEach((g) => addPoint(g.name, g.pos, 'given', { edge: g.edge }));
-  renderPanel();
+  document.body.classList.toggle('demo-mode', !!task.demo);
   setTool(S.tool || 'line', true);
+  if (task.demo) { runDemo(demoStep); return; }
+  renderPanel();
   say(`Начните с инструмента «Прямая»: соедините точки, лежащие в одной грани.`);
   renderTaskList();
+}
+
+// ----- Пошаговый разбор -----
+const ptByName = (n) => S.points.find((p) => p.name === n);
+function lineByName(nm) {
+  const byName = S.lines.find((l) => l.name === sub(nm));
+  if (byName) return byName;
+  const [a, b] = splitNames(nm).map(ptByName);
+  return a && b ? S.lines.find((l) => onLine(l, a.pos) && onLine(l, b.pos)) : null;
+}
+function runDemo(k) {
+  const steps = S.task.steps;
+  S.demoStep = k;
+  let last = [];
+  steps.slice(0, k).forEach((st) => {
+    if (st.do === 'line') { const ln = makeLineThrough(ptByName(st.p[0]), ptByName(st.p[1])); last = ln ? [ln] : []; }
+    if (st.do === 'par') { const ln = makeParallel(ptByName(st.through), lineByName(st.like), st.name); last = ln ? [ln] : []; }
+    if (st.do === 'meet') { const pt = intersect(lineByName(st.a), lineByName(st.b), st.name); last = pt ? [pt] : []; }
+    if (st.do === 'section') { const pts = S.prep.target.map((t) => t.pos); S.secObjs.push(fan(pts, secMat), polyline(pts, M.secLine, true, 5)); last = []; }
+  });
+  S.sel = last;
+  renderPanel();
+  renderTaskList();
+  say(k ? `<b>Шаг ${k}.</b> ${steps[k - 1].text}` : 'Даны точки на рёбрах (и в гранях). Нажмите «Далее», чтобы начать построение.', k === steps.length ? 'ok' : '');
+}
+function renderDemo() {
+  const steps = S.task.steps, k = S.demoStep;
+  $('demoNote').textContent = S.task.note || '';
+  $('demoNote').hidden = !S.task.note;
+  $('demoSteps').innerHTML = steps.map((st, i) => `<li class="${i < k - 1 ? 'done' : i === k - 1 ? 'cur' : 'todo'}"><button data-step="${i + 1}">${st.text}</button></li>`).join('');
+  $('demoPrev').disabled = k === 0;
+  $('demoNext').disabled = k === steps.length;
+  $('demoNext').textContent = k === 0 ? 'Начать построение' : k === steps.length ? 'Построение завершено' : 'Далее';
+  $('demoCount').textContent = `${k} из ${steps.length}`;
+  const cur = $('demoSteps').querySelector('.cur');
+  if (cur && !document.body.classList.contains('theory-mode')) {
+    const box = $('demoSteps').closest('.panel'), r = cur.getBoundingClientRect(), b = box.getBoundingClientRect();
+    if (box.scrollHeight > box.clientHeight && (r.top < b.top || r.bottom > b.bottom)) box.scrollTop += r.top - b.top - b.height / 3;
+  }
 }
 
 // ----- Панель -----
@@ -523,7 +642,7 @@ function planeName(prep) { return prep.given.map((g) => sub(g.name)).join(''); }
 function renderPanel() {
   const { task, prep, poly } = S;
   const lv = task.level;
-  $('chips').innerHTML = `<span class="chip lv${lv}">${LEVELS[lv].name} уровень</span><span class="chip">${poly.def.title}</span>${task.random ? '<span class="chip">случайная</span>' : ''}`;
+  $('chips').innerHTML = `<span class="chip lv${lv}">${LEVELS[lv].name} уровень</span><span class="chip">${poly.def.title}</span>${task.fromDemo ? `<span class="chip">${task.fromDemo} из презентации</span>` : task.random ? '<span class="chip">случайная</span>' : ''}`;
   const verts = prep.given.filter((g) => g.vertex).map((g) => sub(g.name));
   const pts = prep.given.filter((g) => !g.vertex).map((g) => sub(g.name));
   let through = '';
@@ -532,7 +651,8 @@ function renderPanel() {
   else through = `через вершины <span class="m">${verts.join(', ')}</span>`;
   $('statement').innerHTML = `Постройте сечение ${poly.def.full} <span class="m">${poly.label}</span> плоскостью, проходящей ${through}.`;
   $('pdesc').innerHTML = task.pts.map((s) => describePoint(s)).filter(Boolean).map((t) => `<li>${t}</li>`).join('');
-  $('vcount').textContent = lv === 1 ? `Сечение имеет ${prep.target.length} вершины.` : lv === 2 ? 'Сколько вершин у сечения, выясните сами.' : 'Число вершин не сообщается. Ищите следы секущей плоскости на плоскостях граней.';
+  $('vcount').textContent = task.demo ? '' : lv === 1 ? `Сечение имеет ${prep.target.length} вершины.` : lv === 2 ? 'Сколько вершин у сечения, выясните сами.' : 'Число вершин не сообщается. Ищите следы секущей плоскости на плоскостях граней.';
+  if (task.demo) { $('chips').innerHTML = `<span class="chip">Разбор из презентации</span><span class="chip">${task.title}</span><span class="chip">${poly.def.title}</span>`; renderDemo(); renderLog(); return; }
   $('hintCost').textContent = LEVELS[lv].cost ? 'Каждая подсказка снимает одну звезду. Без подсказок — три звезды.' : 'На базовом уровне подсказки не снимают звёзд.';
   renderHints(); renderLog(); renderResult();
 }
@@ -556,8 +676,16 @@ function renderResult(html, tone) {
 }
 function starsHtml(n) { n = Number.isInteger(n) ? Math.max(0, Math.min(3, n)) : null; return n == null ? '' : '<span class="stars" aria-label="' + n + ' из 3">' + '★'.repeat(n) + '<span class="off">' + '★'.repeat(3 - n) + '</span></span>'; }
 function renderTaskList() {
-  document.querySelectorAll('.levels button').forEach((b) => b.setAttribute('aria-selected', String(+b.dataset.level === curLevel)));
+  document.querySelectorAll('.levels button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view ? document.body.classList.contains('theory-mode') : !document.body.classList.contains('theory-mode') && +b.dataset.level === curLevel)));
   $('levelNote').textContent = LEVELS[curLevel].note;
+  $('tasksTitle').textContent = curLevel ? 'Задачи уровня' : 'Задачи из презентации';
+  if (curLevel === 0) {
+    $('taskList').innerHTML = DEMOS.map((d, i) => {
+      const nm = d.pts.map((p) => sub(p.v || p.n)).join('');
+      return `<li><button data-demo="${d.id}" aria-current="${S && S.task.id === d.id}"><span class="no">${String(i + 1).padStart(2, '0')}</span><span class="nm"><b>${POLY_DEFS[d.poly].title}</b><span>сечение через ${nm}</span></span></button></li>`;
+    }).join('');
+    return;
+  }
   const list = TASKS.filter((t) => t.level === curLevel);
   if (randomTasks[curLevel]) list.push(randomTasks[curLevel]);
   $('taskList').innerHTML = list.map((t, i) => {
@@ -608,16 +736,18 @@ function makeLineThrough(A, B) {
   const common = S.poly.faces.filter((f) => [A, B].every((P) => Math.abs(V.dot(f.normal, P.pos) - f.d) < 1e-6));
   const where = common.length ? ` Она лежит в плоскости грани ${m(common.map((f) => f.label).join(', '))}.` : ' Прямая не лежит ни в одной грани: она проходит внутри или вне многогранника.';
   say(`Проведена прямая ${m(ln.name)}.${where}`, common.length ? '' : 'warn');
+  return ln;
 }
 
-function makeParallel(P, L) {
+function makeParallel(P, L, forced) {
   if (onLine(L, P.pos)) { say(`Точка ${m(sub(P.name))} лежит на прямой ${m(L.name)} — параллельная совпадёт с ней.`, 'warn'); return; }
   const d = V.mul(V.norm(L.d), 1);
   if (S.lines.some((l) => onLine(l, P.pos) && V.len(V.cross(V.norm(l.d), d)) < 1e-7)) { say('Такая прямая уже построена.', 'warn'); return; }
-  const name = 'ℓ' + sub(String(++lineNo));
+  const name = forced ? sub(forced) : 'ℓ' + sub(String(++lineNo));
   const ln = addLine(P.pos, d, -0.7, 0.7, name);
-  pushHistory(`${name} ∥ ${L.name}, через ${sub(P.name)}`, () => { removeObj(ln.obj); S.lines = S.lines.filter((l) => l !== ln); lineNo--; });
+  pushHistory(`${name} ∥ ${L.name}, через ${sub(P.name)}`, () => { removeObj(ln.obj); S.lines = S.lines.filter((l) => l !== ln); if (!forced) lineNo--; });
   say(`Проведена прямая ${m(name)} через ${m(sub(P.name))} параллельно ${m(L.name)}. Найдите её пересечения с рёбрами.`);
+  return ln;
 }
 
 function edgeOfPoint(pos) {
@@ -627,7 +757,7 @@ function edgeOfPoint(pos) {
   });
 }
 
-function intersect(A, B) {
+function intersect(A, B, forced) {
   const r = lineLine(A.p, A.d, B.p, B.d);
   const nm = `${m(A.name)} и ${m(B.name)}`;
   if (r.kind === 'same') return say(`${nm} — одна и та же прямая.`, 'warn');
@@ -643,12 +773,13 @@ function intersect(A, B) {
     if (oldA[0] !== A.t0 || oldA[1] !== A.t1 || oldB[0] !== B.t0 || oldB[1] !== B.t1) pushHistory(`продление до ${sub(ex.name)}`, restore);
     return;
   }
-  const name = nextName();
+  const name = forced || nextName();
   const ei = edgeOfPoint(pos);
   const pt = addPoint(name, pos, 'built', { edge: ei >= 0 ? ei : undefined });
   pushHistory(`${sub(name)} = ${A.name} ∩ ${B.name}`, () => { removePoint(pt); restore(); });
   const where = ei >= 0 ? ` Она лежит на ребре ${m(S.poly.edges[ei].label)}.` : ' Точка лежит вне рёбер — это вспомогательная точка следа.';
   say(`Построена точка ${m(sub(name))} = ${A.name} ∩ ${B.name}.${where}`, ei >= 0 ? 'ok' : '');
+  return pt;
 }
 
 // ----- Сечение -----
@@ -737,6 +868,7 @@ function pickFor(x, y) {
   const l = pickLine(x, y); return l && { type: 'line', obj: l };
 }
 function handleClick(x, y) {
+  if (S.task.demo) return;
   if (S.solved && S.tool === 'section') return;
   const hit = pickFor(x, y);
   const t = S.tool;
@@ -791,11 +923,34 @@ cvs.addEventListener('pointerleave', () => { S.hover = null; $('tip').hidden = t
 
 // ----- Кнопки -----
 document.querySelectorAll('.tool').forEach((b) => b.addEventListener('click', () => setTool(b.dataset.tool)));
+const demoTask = (d) => ({ ...d, level: 0, demo: true });
+function openDemo(id, step = 0) { curLevel = 0; storeLevel(); showTheory(false); loadTask(demoTask(DEMOS.find((d) => d.id === id)), step); }
+function showTheory(on) {
+  document.body.classList.toggle('theory-mode', on);
+  $('theory').hidden = !on;
+  if (on) { $('theory').scrollTop = 0; window.scrollTo(0, 0); }
+  renderTaskList();
+}
 document.querySelectorAll('.levels button').forEach((b) => b.addEventListener('click', () => {
+  if (b.dataset.view === 'theory') { showTheory(true); return; }
+  showTheory(false);
   curLevel = +b.dataset.level; storeLevel();
-  loadTask(TASKS.find((t) => t.level === curLevel));
+  if (curLevel === 0) openDemo(DEMOS[0].id);
+  else loadTask(TASKS.find((t) => t.level === curLevel));
 }));
+$('theory').addEventListener('click', (e) => { const b = e.target.closest('[data-open]'); if (b) openDemo(b.dataset.open); });
+$('demoPrev').addEventListener('click', () => loadTask(S.task, S.demoStep - 1));
+$('demoNext').addEventListener('click', () => loadTask(S.task, S.demoStep + 1));
+$('demoReset').addEventListener('click', () => loadTask(S.task, 0));
+$('demoSteps').addEventListener('click', (e) => { const b = e.target.closest('[data-step]'); if (b) loadTask(S.task, +b.dataset.step); });
+$('demoTry').addEventListener('click', () => {
+  const d = S.task, p = prepareTask({ ...d, level: 2 });
+  curLevel = classify(p); storeLevel();
+  loadTask({ id: 'try-' + d.id, level: curLevel, poly: d.poly, pts: d.pts, random: true, fromDemo: d.title });
+  say(`Теперь постройте сечение ${d.title.toLowerCase()} сами — инструментами на панели.`);
+});
 $('taskList').addEventListener('click', (e) => {
+  const dm = e.target.closest('button[data-demo]'); if (dm) { openDemo(dm.dataset.demo); return; }
   const b = e.target.closest('button[data-id]'); if (!b) return;
   const t = TASKS.find((x) => x.id === b.dataset.id) || Object.values(randomTasks).find((x) => x && x.id === b.dataset.id);
   if (t) loadTask(t);
@@ -816,6 +971,11 @@ $('hintBtn').addEventListener('click', () => { S.hints++; renderHints(); });
 $('solveBtn').addEventListener('click', reveal);
 window.addEventListener('keydown', (e) => {
   if (e.target.closest('input, select, textarea')) return;
+  if (S.task.demo) {
+    if (e.key === 'ArrowRight' && S.demoStep < S.task.steps.length) loadTask(S.task, S.demoStep + 1);
+    if (e.key === 'ArrowLeft' && S.demoStep > 0) loadTask(S.task, S.demoStep - 1);
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
   const tools = { 1: 'line', 2: 'intersect', 3: 'parallel', 4: 'section' };
   if (tools[e.key]) setTool(tools[e.key]);
@@ -855,5 +1015,6 @@ function frame() {
   renderer.render(scene, camera);
 }
 
-loadTask(TASKS.find((t) => t.level === curLevel) || TASKS[0]);
+if (curLevel === 0) openDemo(DEMOS[0].id);
+else loadTask(TASKS.find((t) => t.level === curLevel) || TASKS[0]);
 frame();

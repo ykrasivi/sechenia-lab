@@ -201,6 +201,59 @@ select, .btn {
 .log .empty { font: 13.5px var(--font-body); }
 .log .empty::before { content: none; }
 
+
+.ico { width: 15px; height: 15px; flex: none; }
+.levels { flex-wrap: wrap; }
+.levels .sep { width: 1px; background: var(--rule); margin: 4px 4px; }
+/* режим разбора */
+.demo { display: none; flex-direction: column; gap: 10px; }
+body.demo-mode .demo { display: flex; }
+body.demo-mode .practice, body.demo-mode #result, body.demo-mode .toolbar, body.demo-mode #undoBtn, body.demo-mode .gen { display: none !important; }
+.demo-head { display: flex; justify-content: space-between; align-items: baseline; }
+.demo-count { font: 500 12px var(--font-mono); color: var(--muted); }
+.demo-steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; counter-reset: st; }
+.demo-steps li { counter-increment: st; }
+.demo-steps button {
+  width: 100%; text-align: left; border: 0; background: transparent; border-radius: 6px; cursor: pointer;
+  padding: 6px 8px 6px 34px; position: relative; font-size: 14px; line-height: 1.4;
+}
+.demo-steps button::before { content: counter(st); position: absolute; left: 8px; top: 6px; font: 500 12px/1.6 var(--font-mono); color: var(--muted); }
+.demo-steps button:hover { background: var(--bg); }
+.demo-steps .todo button { color: var(--muted); opacity: .6; }
+.demo-steps .cur button { background: var(--accent-soft); color: var(--ink); }
+.demo-steps .cur button::before { color: var(--accent); }
+/* теория */
+.theory { grid-column: 1 / -1; grid-row: 2; overflow: auto; min-height: 0; background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r); }
+body.theory-mode .tasks, body.theory-mode .stage, body.theory-mode .panel { display: none; }
+.theory-inner { max-width: 760px; margin: 0 auto; padding: 32px 24px 48px; display: flex; flex-direction: column; gap: 28px; }
+.eyebrow { margin: 0 0 6px; font: 600 11.5px var(--font-body); letter-spacing: .09em; text-transform: uppercase; color: var(--section); }
+.th-title { font: 700 clamp(22px, 3.2vw, 30px)/1.15 var(--font-display); text-transform: none; letter-spacing: -0.01em; color: var(--ink); text-wrap: balance; }
+.lead { margin: 10px 0 0; font-size: 16.5px; color: var(--muted); max-width: 62ch; }
+.th-block { display: flex; flex-direction: column; gap: 12px; padding-top: 22px; border-top: 1px solid var(--rule); }
+.th-block h3 { font: 600 17px var(--font-body); text-transform: none; letter-spacing: 0; color: var(--ink); }
+.th-block .btn { align-self: flex-start; }
+.defs { margin: 0; display: grid; gap: 12px; }
+.defs div { display: grid; grid-template-columns: 170px 1fr; gap: 16px; }
+.defs dt { font: italic 700 16px var(--font-math); }
+.defs dd { margin: 0; }
+.rules, .mistakes { margin: 0; padding-left: 20px; display: grid; gap: 10px; }
+.rules li::marker { color: var(--accent); }
+.mistakes li::marker { color: var(--section); }
+.algo { margin: 0; padding-left: 26px; display: grid; gap: 10px; }
+.algo li::marker { font: 600 13px var(--font-mono); color: var(--accent); }
+.ngon-wrap { overflow-x: auto; }
+.ngon { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+.ngon th, .ngon td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); }
+.ngon th { font: 600 12px var(--font-body); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.ngon td:nth-child(2) { font-variant-numeric: tabular-nums; }
+.note { margin: 0; font-size: 14px; color: var(--muted); }
+@media (max-width: 1100px) { body.theory-mode .app { grid-template-rows: auto auto; } }
+@media (max-width: 760px) {
+  .defs div { grid-template-columns: 1fr; gap: 2px; }
+  .theory-inner { padding: 22px 16px 32px; }
+  .levels .sep { display: none; }
+  .levels button[role] { flex: 1 1 30%; }
+}
 @media (max-width: 1100px) {
   .app { grid-template-columns: 240px minmax(0, 1fr); grid-template-areas: "top top" "tasks stage" "panel panel"; grid-template-rows: auto minmax(460px, 1fr) auto; height: auto; min-height: 100%; }
   .panel { overflow: visible; }
@@ -235,15 +288,86 @@ select, .btn {
         <p>Стереометрия · метод следов</p>
       </div>
     </div>
-    <nav class="levels" role="tablist" aria-label="Уровень сложности">
+    <nav class="levels" role="tablist" aria-label="Разделы">
+      <button role="tab" data-view="theory" id="vTheory"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h5v10H2zM9 3h5v10H9z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>Теория</button>
+      <button role="tab" data-level="0" id="lv0"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13 L13 3 M9 3h4v4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>Разбор задач</button>
+      <span class="sep" aria-hidden="true"></span>
       <button role="tab" data-level="1" id="lv1"><span class="pips"><i class="on"></i><i></i><i></i></span>Базовый</button>
       <button role="tab" data-level="2" id="lv2"><span class="pips"><i class="on"></i><i class="on"></i><i></i></span>Средний</button>
       <button role="tab" data-level="3" id="lv3"><span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i></span>Сложный</button>
     </nav>
   </header>
 
+  <article class="theory" id="theory" hidden>
+    <div class="theory-inner">
+      <header class="th-hero">
+        <p class="eyebrow">Теория</p>
+        <h2 class="th-title">Как строить сечения многогранников</h2>
+        <p class="lead">Коротко о главном: определения, три правила, которые нельзя нарушать, метод следов и типичные ошибки. Каждое правило можно посмотреть в действии — в разборе задач.</p>
+      </header>
+
+      <section class="th-block">
+        <h3>Определения</h3>
+        <dl class="defs">
+          <div><dt>Секущая плоскость</dt><dd>Плоскость, по обе стороны от которой есть точки многогранника (тетраэдра, параллелепипеда).</dd></div>
+          <div><dt>Сечение</dt><dd>Многоугольник, сторонами которого служат отрезки, по которым секущая плоскость пересекает грани многогранника.</dd></div>
+          <div><dt>След</dt><dd>Прямая (или точка), по которой секущая плоскость пересекает плоскость грани. Точку следа часто находят вне многогранника — на продолжении ребра.</dd></div>
+        </dl>
+      </section>
+
+      <section class="th-block">
+        <h3>Правила построения</h3>
+        <ul class="rules">
+          <li><b>Соединять можно только точки одной грани.</b> Отрезок между точками разных граней проходит внутри фигуры и стороной сечения не является.</li>
+          <li><b>Пересекать можно только прямые одной плоскости.</b> Скрещивающиеся прямые общих точек не имеют, искать их «пересечение» бессмысленно.</li>
+          <li><b>Параллельные грани секутся по параллельным отрезкам.</b> Если секущая плоскость пересекает две противоположные грани параллелепипеда, отрезки сечения в них параллельны.</li>
+        </ul>
+        <button class="btn" data-open="d2">Параллельные отрезки: задача 2 →</button>
+      </section>
+
+      <section class="th-block">
+        <h3>Метод следов — алгоритм</h3>
+        <ol class="algo">
+          <li>Найдите грань, в которой лежат две точки сечения, и соедините их.</li>
+          <li>Продолжите эту прямую до пересечения с прямой ребра <i>той же</i> грани. Получится точка следа.</li>
+          <li>Точка следа лежит на ребре, общем для двух граней, — значит, и в плоскости соседней грани. Соедините её с точкой сечения в этой соседней грани.</li>
+          <li>Отметьте, где новая прямая пересекает рёбра, — это вершины сечения. Повторяйте шаги, пока многоугольник не замкнётся.</li>
+        </ol>
+        <div class="btn-row">
+          <button class="btn" data-open="d1">Тетраэдр: задача 1 →</button>
+          <button class="btn" data-open="d3">Шестиугольник в кубе: задача 3 →</button>
+          <button class="btn" data-open="d5">Точка в грани: задача 5 →</button>
+        </div>
+      </section>
+
+      <section class="th-block">
+        <h3>Сколько сторон у сечения</h3>
+        <div class="ngon-wrap"><table class="ngon">
+          <thead><tr><th>Многогранник</th><th>Граней</th><th>Возможные сечения</th></tr></thead>
+          <tbody>
+            <tr><td>Тетраэдр</td><td>4</td><td>треугольник, четырёхугольник</td></tr>
+            <tr><td>Четырёхугольная пирамида</td><td>5</td><td>от треугольника до пятиугольника</td></tr>
+            <tr><td>Треугольная призма</td><td>5</td><td>от треугольника до пятиугольника</td></tr>
+            <tr><td>Параллелепипед, куб</td><td>6</td><td>от треугольника до шестиугольника</td></tr>
+          </tbody>
+        </table></div>
+        <p class="note">Каждая сторона сечения лежит в своей грани, поэтому сторон не больше, чем граней.</p>
+      </section>
+
+      <section class="th-block">
+        <h3>Типичные ошибки</h3>
+        <ul class="mistakes">
+          <li><b>Соединили точки разных граней.</b> В задаче 4 нельзя провести HM или MT: точки лежат в разных гранях.</li>
+          <li><b>Пересекли скрещивающиеся прямые.</b> Прямые HT и BC (или ME и AA₁) не лежат в одной плоскости и не пересекаются.</li>
+          <li><b>Забыли продолжить ребро.</b> Точка следа почти всегда лежит на продолжении ребра, за пределами фигуры.</li>
+        </ul>
+        <button class="btn" data-open="d4">Разбор ошибок: задача 4 →</button>
+      </section>
+    </div>
+  </article>
+
   <aside class="tasks" aria-label="Задачи">
-    <h2>Задачи уровня</h2>
+    <h2 id="tasksTitle">Задачи уровня</h2>
     <p class="level-note" id="levelNote"></p>
     <ol class="task-list" id="taskList"></ol>
     <div class="gen">
@@ -297,12 +421,24 @@ select, .btn {
       <ul class="pdesc" id="pdesc"></ul>
       <p class="vcount" id="vcount"></p>
     </div>
-    <div class="btn-row">
+    <div class="demo" id="demoBox">
+      <div class="demo-head"><h3>Пошаговое построение</h3><span class="demo-count" id="demoCount"></span></div>
+      <p class="hint-cost" id="demoNote" hidden></p>
+      <ol class="demo-steps" id="demoSteps"></ol>
+      <div class="btn-row">
+        <button class="btn" id="demoPrev">← Назад</button>
+        <button class="btn primary" id="demoNext">Далее →</button>
+        <button class="btn" id="demoReset">Сначала</button>
+      </div>
+      <p class="hint-cost">Стрелки ← → на клавиатуре тоже листают шаги. Фигуру можно вращать.</p>
+      <button class="btn" id="demoTry">Построить эту задачу самостоятельно</button>
+    </div>
+    <div class="btn-row practice">
       <button class="btn primary" id="checkBtn">Проверить сечение</button>
       <button class="btn" id="clearBtn">Начать заново</button>
     </div>
     <div class="result" id="result" hidden></div>
-    <div class="hints">
+    <div class="hints practice">
       <h3>Подсказки</h3>
       <p class="hint-cost" id="hintCost"></p>
       <ol class="hint-list" id="hintList"></ol>
